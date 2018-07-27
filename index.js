@@ -1,6 +1,7 @@
 // Library imports
 const util = require('util');
 const http = require('http');
+const https = require('https');
 const raven = require('raven');
 const sharejs = require('share');
 const livedb = require('livedb');
@@ -19,6 +20,8 @@ const settings = {
     // Server Options
     host: process.env.SHAREJS_SERVER_HOST || 'localhost',
     port: process.env.SHAREJS_SERVER_PORT || 7007,
+    certfile: process.env.SHAREJS_SSL_CERT_FILE || null,
+    keyfile: process.env.SHAREJS_SSL_KEY_FILE || null,
     corsAllowOrigin: process.env.SHAREJS_CORS_ALLOW_ORIGIN || 'http://localhost:5000',
     // Mongo options
     dbUrl: process.env.SHAREJS_DB_URL || 'mongodb://localhost:27017/sharejs',
@@ -86,7 +89,13 @@ const backend = livedb.client(mongo);
 const share = sharejs.server.createClient({backend: backend});
 const app = express();
 const jsonParser = bodyParser.json();
-const server = http.createServer(app);
+if (settings.certfile && settings.keyfile) {
+    const ssl_options = {
+        cert: fs.readFileSync(settings.certfile),
+        key: fs.readFileSync(settings.keyfile)
+    };
+}
+const server = (settings.certfile && settings.keyfile) ? https.createServer(ssl_options, app) : http.createServer(app);
 const wss = new WebSocketServer({server: server});
 
 // Local constiables
@@ -299,5 +308,6 @@ app.get('/healthz', function(req, res){
 });
 
 server.listen(settings.port, settings.host, function() {
-    console.log('Server running at http://%s:%s', settings.host, settings.port);
+    console.log('Server running at %s://%s:%s', (settings.certfile && settings.keyfile) ? 'https' : 'http', settings.host, settings.port);
 });
+
